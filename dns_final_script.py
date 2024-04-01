@@ -9,6 +9,8 @@ from ipaddress import ip_address
 import datetime as dt
 import zat
 from zat.log_to_dataframe import LogToDataFrame
+from elasticsearch import Elasticsearch
+
 
 print('imported All required Libraries')
 
@@ -106,13 +108,29 @@ except Exception as e:
 print('Start Model Prediction')
 
 try:
-    df=pd.read_csv('data.csv',usecols=['id.orig_h','id.orig_p','id.resp_h','id.resp_p','query','proto','dns_connection'])
+    df = pd.read_csv('data.csv', usecols=['id.orig_h', 'id.orig_p', 'id.resp_h', 'id.resp_p', 'query', 'proto', 'dns_connection'])
     filename = 'DNS_model.sav'
     model = pkl.load(open(filename, 'rb'))
     merged_log['label'] = model.predict(df)
-    print('Prediction Complete Successfully ')
+    print('Prediction Complete Successfully')
     merged_log.to_csv('dns_model_prediction.csv')
-    print('Prediction Saved Successfully ')
+    print('Prediction Saved Successfully')
+
+    # Initialize Elasticsearch client
+    es = Elasticsearch("http://192.168.196.98:9200")
+
+    # Define the prediction_df DataFrame
+    prediction_df = pd.read_csv('dns_model_prediction.csv')
+
+    # Print prediction_df to check its contents
+    print(prediction_df)
+
+    # Indexing predictions to Elasticsearch
+    for idx, row in prediction_df.iterrows():
+        if row['label'] == 'Normal':  # If DNS alert
+            es.index(index="dns-alerts", body=row.to_dict())
+            print("DNS alert sent to Elasticsearch:", row.to_dict())  # Print statement
+
 except Exception as e:
-    print(f"Error occurred during model prediction: {e}")
+    print(f"Error occurred during model prediction or Elasticsearch indexing: {e}")
     exit()
